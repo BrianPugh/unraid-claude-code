@@ -1,35 +1,33 @@
 <?xml version='1.0' standalone='yes'?>
-<!DOCTYPE PLUGIN [
-  <!ENTITY name      "claude-code">
-  <!ENTITY author    "brianpugh">
-  <!ENTITY version   "0.0.0">
-  <!ENTITY gitURL    "https://raw.githubusercontent.com/brianpugh/unraid-claude-code/main">
-  <!ENTITY pluginURL "&gitURL;/&name;.plg">
-  <!ENTITY supportURL "https://forums.unraid.net/topic/XXXXX-claude-code/">
-  <!ENTITY nodeVersion "22">
-]>
 
-<PLUGIN name="&name;" author="&author;" version="&version;"
-        pluginURL="&pluginURL;" supportURL="&supportURL;"
-        icon="terminal" min="6.12.0">
+<PLUGIN name="claude-code" author="brianpugh" version="0.0.0"
+        pluginURL="https://raw.githubusercontent.com/brianpugh/unraid-claude-code/main/claude-code.plg"
+        supportURL="https://forums.unraid.net/topic/XXXXX-claude-code/"
+        icon="https://raw.githubusercontent.com/brianpugh/unraid-claude-code/main/claude-icon.png"
+        min="6.12.0">
 
 <CHANGES>
-###&version;
+###0.0.0
 - Initial release
 - Installs Claude Code CLI
 - Persistent authentication via user-configurable appdata folder
 </CHANGES>
 
+<DESCRIPTION>
+Claude Code CLI - AI-powered coding assistant from Anthropic.
+Use Claude directly in your terminal for code generation, debugging, and more.
+</DESCRIPTION>
+
 <!-- Create directories -->
 <FILE Run="/bin/bash">
 <INLINE>
-mkdir -p /boot/config/plugins/&name;
-mkdir -p /usr/local/emhttp/plugins/&name;/scripts
+mkdir -p /boot/config/plugins/claude-code
+mkdir -p /usr/local/emhttp/plugins/claude-code/scripts
 </INLINE>
 </FILE>
 
 <!-- Configuration file -->
-<FILE Name="/boot/config/plugins/&name;/&name;.cfg">
+<FILE Name="/boot/config/plugins/claude-code/claude-code.cfg">
 <INLINE>
 # Claude Code Plugin Configuration
 # Path to store Claude config (on array, not flash)
@@ -38,8 +36,9 @@ APPDATA_PATH="/mnt/user/appdata/claude-code"
 </FILE>
 
 <!-- Install/setup script -->
-<FILE Name="/usr/local/emhttp/plugins/&name;/scripts/install-claude.sh" Mode="0755">
+<FILE Name="/usr/local/emhttp/plugins/claude-code/scripts/install-claude.sh" Mode="0755">
 <INLINE>
+<![CDATA[
 #!/bin/bash
 
 set -e
@@ -53,7 +52,7 @@ source "$PLUGIN_CFG"
 echo "=== Claude Code Installation ==="
 
 install_nodejs() {
-    if command -v node &amp;> /dev/null; then
+    if command -v node &> /dev/null; then
         echo "Node.js already installed: $(node --version)"
         return 0
     fi
@@ -108,21 +107,28 @@ install_nodejs() {
 }
 
 install_claude_code() {
-    if command -v claude &amp;> /dev/null; then
-        echo "Claude Code already installed: $(claude --version 2>/dev/null || echo 'installed')"
+    # Check if claude works (not just exists)
+    if command -v claude &> /dev/null && claude --version &> /dev/null; then
+        echo "Claude Code already installed: $(claude --version 2>/dev/null)"
         return 0
+    fi
+
+    # Remove stale symlink/file if it exists but doesn't work
+    if [ -e /usr/local/bin/claude ] || [ -L /usr/local/bin/claude ]; then
+        echo "Removing stale claude binary..."
+        rm -f /usr/local/bin/claude
     fi
 
     echo "Installing Claude Code via npm..."
     npm install -g @anthropic-ai/claude-code
 
     # Verify installation
-    if command -v claude &amp;> /dev/null; then
+    if command -v claude &> /dev/null; then
         echo "Claude Code installed successfully!"
     else
         # May need to find where npm installed it
-        NPM_BIN=$(npm bin -g)
-        if [ -f "$NPM_BIN/claude" ]; then
+        NPM_BIN=$(npm bin -g 2>/dev/null)
+        if [ -n "$NPM_BIN" ] && [ -f "$NPM_BIN/claude" ]; then
             ln -sf "$NPM_BIN/claude" /usr/local/bin/claude
             echo "Claude Code installed and linked."
         else
@@ -145,7 +151,7 @@ setup_auth_persistence() {
     mkdir -p "$APPDATA_PATH"
 
     # If runtime config exists but is not a symlink, migrate it
-    if [ -d "$CLAUDE_CONFIG_RUNTIME" ] &amp;&amp; [ ! -L "$CLAUDE_CONFIG_RUNTIME" ]; then
+    if [ -d "$CLAUDE_CONFIG_RUNTIME" ] && [ ! -L "$CLAUDE_CONFIG_RUNTIME" ]; then
         echo "Migrating existing Claude config to appdata..."
         if [ -d "$APPDATA_PATH/.claude" ]; then
             # Merge: appdata takes precedence, but copy any missing files from runtime
@@ -184,14 +190,16 @@ setup_auth_persistence
 
 echo ""
 echo "=== Installation Complete ==="
-echo "Run 'claude' to start using Claude Code."
+echo "Run claude to start using Claude Code."
 echo "Your authentication will persist in: $APPDATA_PATH"
+]]>
 </INLINE>
 </FILE>
 
 <!-- Web UI -->
-<FILE Name="/usr/local/emhttp/plugins/&name;/&name;.page">
+<FILE Name="/usr/local/emhttp/plugins/claude-code/claude-code.page">
 <INLINE>
+<![CDATA[
 Menu="Utilities"
 Title="Claude Code"
 Icon="terminal"
@@ -292,13 +300,16 @@ $symlink_ok = $symlink_target === "$appdata_path/.claude";
                 </dd>
             </dl>
         </form>
-        <p><em>Store Claude config on your array (e.g., /mnt/user/appdata/claude-code) to avoid flash wear.</em></p>
+        <p><em>Store Claude config on your array to avoid flash wear.</em></p>
     </div>
 
     <div class="section">
         <h3>Usage</h3>
         <p>Open the Unraid terminal and run:</p>
         <div class="code-block">claude</div>
+        <p style="margin-top: 10px;">
+            <input type="button" value="Launch Claude" onclick="window.open('/webterminal/?cmd=claude', '_blank')">
+        </p>
     </div>
 
     <?php if (!$has_auth): ?>
@@ -321,12 +332,14 @@ $symlink_ok = $symlink_target === "$appdata_path/.claude";
         </form>
     </div>
 </div>
+]]>
 </INLINE>
 </FILE>
 
 <!-- Startup script (runs on boot) -->
-<FILE Name="/usr/local/emhttp/plugins/&name;/event/starting_svcs" Mode="0755">
+<FILE Name="/usr/local/emhttp/plugins/claude-code/event/starting_svcs" Mode="0755">
 <INLINE>
+<![CDATA[
 #!/bin/bash
 
 # Runs on every Unraid boot to restore Claude Code and setup symlink
@@ -337,19 +350,21 @@ echo "Claude Code: Starting services..."
 /usr/local/emhttp/plugins/claude-code/scripts/install-claude.sh
 
 echo "Claude Code: Ready."
+]]>
 </INLINE>
 </FILE>
 
 <!-- Post-install -->
 <FILE Run="/bin/bash">
 <INLINE>
-/usr/local/emhttp/plugins/&name;/scripts/install-claude.sh
+<![CDATA[
+/usr/local/emhttp/plugins/claude-code/scripts/install-claude.sh
 
 echo ""
 echo "-----------------------------------------------------------"
-echo " Claude Code v&version; has been installed!"
+echo " Claude Code v0.0.0 has been installed!"
 echo ""
-echo " To use: Open terminal and run 'claude'"
+echo " To use: Open terminal and run: claude"
 echo " Web UI: Settings -> Utilities -> Claude Code"
 echo ""
 echo " Your Claude config will be stored at:"
@@ -357,12 +372,14 @@ echo "   /mnt/user/appdata/claude-code/.claude"
 echo " (configurable in the web UI)"
 echo "-----------------------------------------------------------"
 echo ""
+]]>
 </INLINE>
 </FILE>
 
 <!-- Removal -->
 <FILE Run="/bin/bash" Method="remove">
 <INLINE>
+<![CDATA[
 echo "Removing Claude Code plugin..."
 
 # Remove symlink
@@ -372,7 +389,7 @@ rm -f /root/.claude
 npm uninstall -g @anthropic-ai/claude-code 2>/dev/null || true
 
 # Remove plugin runtime files
-rm -rf /usr/local/emhttp/plugins/&name;
+rm -rf /usr/local/emhttp/plugins/claude-code
 rm -f /usr/local/bin/claude
 
 # Note: We keep config and appdata for potential reinstall
@@ -381,6 +398,7 @@ echo "Claude Code removed."
 echo "Config preserved at: /boot/config/plugins/claude-code/"
 echo "Auth data preserved at your appdata location."
 echo "Delete manually if you want a complete removal."
+]]>
 </INLINE>
 </FILE>
 

@@ -1,6 +1,6 @@
 # Claude Code Unraid Plugin
 
-Installs [Claude Code](https://github.com/anthropics/claude-code) CLI on Unraid with persistent authentication across reboots.
+Installs [Claude Code](https://github.com/anthropics/claude-code) CLI on Unraid.
 
 ## Install
 
