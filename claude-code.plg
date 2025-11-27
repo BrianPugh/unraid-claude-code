@@ -362,7 +362,7 @@ echo "Claude Code: Ready."
 
 echo ""
 echo "-----------------------------------------------------------"
-echo " Claude Code v0.0.0 has been installed!"
+echo " Claude Code plugin v0.0.0 has been installed!"
 echo ""
 echo " To use: Open terminal and run: claude"
 echo " Web UI: Settings -> Utilities -> Claude Code"
