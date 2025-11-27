@@ -23,7 +23,13 @@ Use Claude directly in your terminal for code generation, debugging, and more.
 <INLINE>
 mkdir -p /boot/config/plugins/claude-code
 mkdir -p /usr/local/emhttp/plugins/claude-code/scripts
+mkdir -p /usr/local/emhttp/plugins/claude-code/icons
 </INLINE>
+</FILE>
+
+<!-- Download icon -->
+<FILE Name="/usr/local/emhttp/plugins/claude-code/icons/claude-code.png">
+<URL>https://raw.githubusercontent.com/brianpugh/unraid-claude-code/main/claude-icon.png</URL>
 </FILE>
 
 <!-- Configuration file -->
@@ -202,7 +208,8 @@ echo "Your authentication will persist in: $APPDATA_PATH"
 <![CDATA[
 Menu="Utilities"
 Title="Claude Code"
-Icon="terminal"
+Icon="icons/claude-code.png"
+Desc="AI-powered coding assistant CLI"
 ---
 <?php
 $plugin_dir = "/boot/config/plugins/claude-code";
@@ -305,11 +312,8 @@ $symlink_ok = $symlink_target === "$appdata_path/.claude";
 
     <div class="section">
         <h3>Usage</h3>
-        <p>Open the Unraid terminal and run:</p>
+        <p>Open the Unraid terminal (top-right corner) and run:</p>
         <div class="code-block">claude</div>
-        <p style="margin-top: 10px;">
-            <input type="button" value="Launch Claude" onclick="window.open('/webterminal/?cmd=claude', '_blank')">
-        </p>
     </div>
 
     <?php if (!$has_auth): ?>
