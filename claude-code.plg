@@ -1,13 +1,13 @@
 <?xml version='1.0' standalone='yes'?>
 
-<PLUGIN name="claude-code" author="brianpugh" version="0.0.0"
+<PLUGIN name="claude-code" author="brianpugh" version="2025.11.27"
         pluginURL="https://raw.githubusercontent.com/brianpugh/unraid-claude-code/main/claude-code.plg"
         supportURL="https://forums.unraid.net/topic/XXXXX-claude-code/"
         icon="https://raw.githubusercontent.com/brianpugh/unraid-claude-code/main/claude-icon.png"
         min="6.12.0">
 
 <CHANGES>
-###0.0.0
+###2025.11.27
 - Initial release
 - Installs Claude Code CLI
 - Persistent authentication via user-configurable appdata folder
@@ -362,7 +362,7 @@ echo "Claude Code: Ready."
 
 echo ""
 echo "-----------------------------------------------------------"
-echo " Claude Code plugin v0.0.0 has been installed!"
+echo " Claude Code plugin v2025.11.27 has been installed!"
 echo ""
 echo " To use: Open terminal and run: claude"
 echo " Web UI: Settings -> Utilities -> Claude Code"

@@ -5,8 +5,6 @@ Installs [Claude Code](https://github.com/anthropics/claude-code) CLI on Unraid.
 ## Install
 
 ```bash
-# From Community Applications (once approved)
-# Or manually:
 plugin install https://raw.githubusercontent.com/brianpugh/unraid-claude-code/main/claude-code.plg
 ```
 
@@ -43,3 +41,17 @@ plugin install http://YOUR_DEV_IP:8080/claude-code.plg
 # Reinstall after changes
 plugin remove claude-code.plg && plugin install http://YOUR_DEV_IP:8080/claude-code.plg
 ```
+
+### Releasing
+
+This plugin uses date-based versioning (`YYYY.MM.DD`) per Unraid plugin conventions.
+
+```bash
+# Update version to today's date, commit, and tag
+bump-my-version replace --new-version 2025.12.01
+
+# Push with tags
+git push && git push --tags
+```
+
+The release updates version strings in `claude-code.plg` automatically via `.bumpversion.toml`.
