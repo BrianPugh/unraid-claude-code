@@ -1,0 +1,15 @@
+[tool.bumpversion]
+current_version = "0.0.0"
+commit = true
+commit_args = ""
+tag = true
+tag_name = "v{new_version}"
+tag_message = "Release v{new_version}"
+allow_dirty = false
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
+
+[[tool.bumpversion.files]]
+filename = "claude-code.plg"
+search = '<!ENTITY version   "{current_version}">'
+replace = '<!ENTITY version   "{new_version}">'
