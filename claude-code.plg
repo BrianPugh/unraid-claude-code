@@ -47,13 +47,17 @@ APPDATA_PATH="/mnt/user/appdata/claude-code"
 <![CDATA[
 #!/bin/bash
 
-set -e
+# Don't use set -e - we want to continue even if some steps fail
 
 PLUGIN_CFG="/boot/config/plugins/claude-code/claude-code.cfg"
 CLAUDE_CONFIG_RUNTIME="/root/.claude"
 
 # Load config
-source "$PLUGIN_CFG"
+if [ -f "$PLUGIN_CFG" ]; then
+    source "$PLUGIN_CFG"
+else
+    APPDATA_PATH="/mnt/user/appdata/claude-code"
+fi
 
 echo "=== Claude Code Installation ==="
 
@@ -65,11 +69,11 @@ install_nodejs() {
 
     echo "Node.js not found. Attempting installation..."
 
-    # Check if nerd-pack is available (preferred method)
-    if [ -f /boot/config/plugins/nerd-pack/nerd-pack.cfg ]; then
-        echo "NerdTools detected. Please enable Node.js in NerdTools settings."
-        echo "Settings -> Nerd Tools -> Node.js"
-        return 1
+    # Check if nerd-pack/NerdTools is available
+    if [ -f /boot/config/plugins/nerd-pack/nerd-pack.cfg ] || [ -f /boot/config/plugins/NerdTools/NerdTools.cfg ]; then
+        echo "NerdTools detected but Node.js not available."
+        echo "Please enable Node.js in: Settings -> NerdTools"
+        echo "Will attempt direct installation as fallback..."
     fi
 
     # Direct installation fallback - download Node.js binary
@@ -143,13 +147,13 @@ install_claude_code() {
     fi
 }
 
-setup_auth_persistence() {
-    echo "Setting up authentication persistence..."
+setup_persistence() {
+    echo "Setting up persistent storage..."
     echo "Appdata path: $APPDATA_PATH"
 
     # Check if array is available
     if [ ! -d "/mnt/user" ]; then
-        echo "WARNING: Array not started. Auth persistence will be configured when array starts."
+        echo "WARNING: Array not started. Persistence will be configured when array starts."
         return 0
     fi
 
@@ -177,27 +181,40 @@ setup_auth_persistence() {
     # Create symlink
     ln -sf "$APPDATA_PATH/.claude" "$CLAUDE_CONFIG_RUNTIME"
 
-    echo "Auth persistence configured: $CLAUDE_CONFIG_RUNTIME -> $APPDATA_PATH/.claude"
+    echo "Persistence configured: $CLAUDE_CONFIG_RUNTIME -> $APPDATA_PATH/.claude"
 }
 
 # Main
-install_nodejs || {
-    echo "ERROR: Failed to install Node.js"
-    echo "Please install NerdTools plugin and enable Node.js, then reinstall this plugin."
-    exit 1
-}
+if ! install_nodejs; then
+    echo "WARNING: Failed to install Node.js"
+    echo "Please install NerdTools plugin and enable Node.js, or reboot and try again."
+    echo "You can also manually run: /usr/local/emhttp/plugins/claude-code/scripts/install-claude.sh"
+    # Don't exit - try to continue in case it's a transient error
+fi
 
-install_claude_code || {
-    echo "ERROR: Failed to install Claude Code"
-    exit 1
-}
+if command -v node &> /dev/null; then
+    if ! install_claude_code; then
+        echo "WARNING: Failed to install Claude Code"
+        echo "Try running manually: npm install -g @anthropic-ai/claude-code"
+    fi
+else
+    echo "Skipping Claude Code install - Node.js not available"
+fi
 
-setup_auth_persistence
+# Always try to set up persistence if array is available
+setup_persistence
 
 echo ""
-echo "=== Installation Complete ==="
-echo "Run claude to start using Claude Code."
-echo "Your authentication will persist in: $APPDATA_PATH"
+if command -v claude &> /dev/null; then
+    echo "=== Installation Complete ==="
+    echo "Run 'claude' to start using Claude Code."
+    echo "Your authentication will persist in: $APPDATA_PATH"
+else
+    echo "=== Installation Incomplete ==="
+    echo "Claude Code is not yet available."
+    echo "Check /var/log/claude-code-install.log for details."
+    echo "You may need to enable Node.js in NerdTools or reboot."
+fi
 ]]>
 </INLINE>
 </FILE>
@@ -340,13 +357,45 @@ $symlink_ok = $symlink_target === "$appdata_path/.claude";
 </INLINE>
 </FILE>
 
-<!-- Startup script (runs on boot) -->
+<!-- rc.d startup script (runs on boot via Unraid's init system) -->
+<FILE Name="/etc/rc.d/rc.claude-code" Mode="0755">
+<INLINE>
+<![CDATA[
+#!/bin/bash
+
+# Claude Code startup script for Unraid
+# Called by Unraid's init system on boot
+
+case "$1" in
+    start)
+        echo "Starting Claude Code..."
+        # Run install script in background to not block boot
+        nohup /usr/local/emhttp/plugins/claude-code/scripts/install-claude.sh > /var/log/claude-code-install.log 2>&1 &
+        ;;
+    stop)
+        echo "Stopping Claude Code..."
+        ;;
+    restart)
+        $0 stop
+        sleep 1
+        $0 start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac
+]]>
+</INLINE>
+</FILE>
+
+<!-- Also keep event script as backup trigger -->
 <FILE Name="/usr/local/emhttp/plugins/claude-code/event/starting_svcs" Mode="0755">
 <INLINE>
 <![CDATA[
 #!/bin/bash
 
-# Runs on every Unraid boot to restore Claude Code and setup symlink
+# Runs on every Unraid boot to install Claude Code and setup persistent storage
 
 echo "Claude Code: Starting services..."
 
@@ -362,6 +411,17 @@ echo "Claude Code: Ready."
 <FILE Run="/bin/bash">
 <INLINE>
 <![CDATA[
+# Add startup entry to go file if not already present
+GO_FILE="/boot/config/go"
+STARTUP_CMD="/etc/rc.d/rc.claude-code start"
+
+if ! grep -q "rc.claude-code" "$GO_FILE" 2>/dev/null; then
+    echo "" >> "$GO_FILE"
+    echo "# Start Claude Code" >> "$GO_FILE"
+    echo "$STARTUP_CMD" >> "$GO_FILE"
+fi
+
+# Run install now
 /usr/local/emhttp/plugins/claude-code/scripts/install-claude.sh
 
 echo ""
@@ -385,6 +445,13 @@ echo ""
 <INLINE>
 <![CDATA[
 echo "Removing Claude Code plugin..."
+
+# Remove startup entry from go file
+sed -i '/# Start Claude Code/d' /boot/config/go 2>/dev/null || true
+sed -i '/rc.claude-code/d' /boot/config/go 2>/dev/null || true
+
+# Remove rc.d script
+rm -f /etc/rc.d/rc.claude-code
 
 # Remove symlink
 rm -f /root/.claude
