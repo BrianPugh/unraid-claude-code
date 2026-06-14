@@ -6,6 +6,18 @@ Installs [Claude Code](https://github.com/anthropics/claude-code) CLI on Unraid.
 
 ## Install
 
+### Graphic Installation
+
+1. Navigate to your Unraid instance's web UI
+2. Click the "Plugins" menu item
+3. Click the "Install Plugin" tab
+4. In the URL field below "Enter URL of remote plugin file or local plugin file", input the URL `https://raw.githubusercontent.com/brianpugh/unraid-claude-code/main/claude-code.plg`
+5. Press the "Install" button.
+
+### CLI
+
+In your Unraid terminal window:
+
 ```bash
 plugin install https://raw.githubusercontent.com/brianpugh/unraid-claude-code/main/claude-code.plg
 ```
