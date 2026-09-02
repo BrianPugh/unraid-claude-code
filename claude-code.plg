@@ -1,12 +1,19 @@
 <?xml version='1.0' standalone='yes'?>
 
-<PLUGIN name="claude-code" author="brianpugh" version="2026.03.06"
+<PLUGIN name="claude-code" author="brianpugh" version="2026.09.02"
         pluginURL="https://raw.githubusercontent.com/brianpugh/unraid-claude-code/main/claude-code.plg"
         supportURL="https://forums.unraid.net/topic/197615-plugin-claude-code/"
         icon="https://raw.githubusercontent.com/brianpugh/unraid-claude-code/main/claude-icon.png"
         min="6.12.0">
 
 <CHANGES>
+###2026.09.02
+- Fix: the appdata binary cache was only ever written on a fresh install, so
+  Claude Code's own background self-updates never made it into the cache.
+  A reboot would silently roll back to the pre-update version and the CLI
+  would keep reporting "restart to update" forever. Added a cron job
+  (every 15 min) that re-caches the binary whenever it changes.
+
 ###2026.03.06
 - Initial release
 - Installs Claude Code CLI
@@ -38,6 +45,32 @@ mkdir -p /usr/local/emhttp/plugins/claude-code/icons
 <![CDATA[
 if [ ! -f /boot/config/plugins/claude-code/claude-code.cfg ]; then
     echo 'APPDATA_PATH=""' > /boot/config/plugins/claude-code/claude-code.cfg
+fi
+]]>
+</INLINE>
+</FILE>
+
+<!-- Cache-sync script: keeps the appdata binary cache up to date with
+     Claude Code's own background self-updates (see install_cron in
+     install-claude.sh). Run periodically via cron, not just at install. -->
+<FILE Name="/usr/local/emhttp/plugins/claude-code/scripts/sync-cache.sh" Mode="0755">
+<INLINE>
+<![CDATA[
+#!/bin/bash
+
+PLUGIN_CFG="/boot/config/plugins/claude-code/claude-code.cfg"
+BIN="/root/.local/bin/claude"
+
+[ -f "$PLUGIN_CFG" ] && source "$PLUGIN_CFG"
+[ -z "$APPDATA_PATH" ] && exit 0
+[ -x "$BIN" ] || exit 0
+
+CACHED_BINARY="$APPDATA_PATH/bin/claude"
+mkdir -p "$APPDATA_PATH/bin"
+
+if ! cmp -s "$BIN" "$CACHED_BINARY" 2>/dev/null; then
+    cp "$BIN" "$CACHED_BINARY.tmp" && mv "$CACHED_BINARY.tmp" "$CACHED_BINARY"
+    chmod +x "$CACHED_BINARY"
 fi
 ]]>
 </INLINE>
@@ -130,6 +163,23 @@ cache_binary() {
         mkdir -p "$APPDATA_PATH/bin"
         cp /root/.local/bin/claude "$CACHED_BINARY"
         echo "Cached Claude binary for future boots."
+    fi
+}
+
+install_cron() {
+    # Claude Code updates itself in the background while running (writes new
+    # versions under ~/.local/share/claude/versions/ and eventually swaps
+    # /root/.local/bin/claude). cache_binary() above only runs right after a
+    # fresh install, so those self-updates never reach the appdata cache -
+    # the next reboot silently restores the pre-update binary. Keep the
+    # cache in sync with a periodic cron job instead of relying on install
+    # time alone.
+    mkdir -p /boot/config/plugins/claude-code
+    cat > /boot/config/plugins/claude-code/claude-code.cron <<'EOF'
+*/15 * * * * /usr/local/emhttp/plugins/claude-code/scripts/sync-cache.sh >/dev/null 2>&1
+EOF
+    if [ -x /usr/local/sbin/update_cron ]; then
+        /usr/local/sbin/update_cron
     fi
 }
 
@@ -283,6 +333,7 @@ setup_claude_json() {
 # (the installer writes to ~/.claude/local/ which follows our symlink)
 setup_persistence
 setup_claude_json
+install_cron
 
 if ! install_claude_code; then
     echo "WARNING: Failed to install Claude Code"
@@ -548,7 +599,7 @@ if ! grep -q "rc.claude-code" "$GO_FILE" 2>/dev/null; then
 
     echo ""
     echo "-----------------------------------------------------------"
-    echo " Claude Code plugin v2026.03.06 has been installed!"
+    echo " Claude Code plugin v2026.09.02 has been installed!"
     echo ""
     echo " To use: Open terminal and run: claude"
     echo " Web UI: Settings -> Utilities -> Claude Code"
@@ -571,6 +622,10 @@ sed -i '/rc.claude-code/d' /boot/config/go 2>/dev/null || true
 
 # Remove rc.d script
 rm -f /etc/rc.d/rc.claude-code
+
+# Remove cron fragment and reload
+rm -f /boot/config/plugins/claude-code/claude-code.cron
+[ -x /usr/local/sbin/update_cron ] && /usr/local/sbin/update_cron
 
 # Remove Claude Code binary (native install locations)
 rm -rf /root/.local/bin/claude 2>/dev/null || true
